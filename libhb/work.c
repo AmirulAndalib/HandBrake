@@ -332,6 +332,10 @@ hb_work_object_t* hb_video_encoder(hb_handle_t *h, int vcodec)
             w = hb_get_work(h, WORK_ENCAVCODEC);
             w->codec_param = AV_CODEC_ID_HEVC;
             break;
+        case HB_VCODEC_FFMPEG_MF_AV1:
+            w = hb_get_work(h, WORK_ENCAVCODEC);
+            w->codec_param = AV_CODEC_ID_AV1;
+            break;
 #endif
         case HB_VCODEC_SVT_AV1:
         case HB_VCODEC_SVT_AV1_10BIT:
@@ -350,18 +354,17 @@ hb_work_object_t* hb_video_encoder(hb_handle_t *h, int vcodec)
 
 hb_work_object_t* hb_audio_encoder(hb_handle_t *h, int codec)
 {
-    if (codec & HB_ACODEC_FF_MASK)
-    {
-        return hb_get_work(h, WORK_ENCAVCODEC_AUDIO);
-    }
     switch (codec)
     {
-        case HB_ACODEC_AC3:
         case HB_ACODEC_LAME:    return hb_get_work(h, WORK_ENCAVCODEC_AUDIO);
         case HB_ACODEC_VORBIS:  return hb_get_work(h, WORK_ENCVORBIS);
         case HB_ACODEC_CA_AAC:  return hb_get_work(h, WORK_ENC_CA_AAC);
         case HB_ACODEC_CA_HAAC: return hb_get_work(h, WORK_ENC_CA_HAAC);
         default:                break;
+    }
+    if (codec & HB_ACODEC_FF_MASK)
+    {
+        return hb_get_work(h, WORK_ENCAVCODEC_AUDIO);
     }
     return NULL;
 }
@@ -600,6 +603,7 @@ void hb_display_job_info(hb_job_t *job)
                 case HB_VCODEC_VT_H265_10BIT:
                 case HB_VCODEC_FFMPEG_MF_H264:
                 case HB_VCODEC_FFMPEG_MF_H265:
+                case HB_VCODEC_FFMPEG_MF_AV1:
                 case HB_VCODEC_SVT_AV1:
                 case HB_VCODEC_SVT_AV1_10BIT:
                     hb_log("     + profile: %s", job->encoder_profile);
@@ -695,7 +699,7 @@ void hb_display_job_info(hb_job_t *job)
             }
         }
 
-        if (job->passthru_dynamic_hdr_metadata & DOVI)
+        if (job->passthru_dynamic_hdr_metadata & HB_HDR_DYNAMIC_METADATA_DOVI)
         {
             hb_log("     + dolby vision configuration record: version: %d.%d, profile: %d, level: %d, rpu flag: %d, el flag: %d, bl flag: %d, compatibility id: %d",
                    job->dovi.dv_version_major,
@@ -708,7 +712,7 @@ void hb_display_job_info(hb_job_t *job)
                    job->dovi.dv_bl_signal_compatibility_id);
         }
 
-        if (job->passthru_dynamic_hdr_metadata & HDR_10_PLUS)
+        if (job->passthru_dynamic_hdr_metadata & HB_HDR_DYNAMIC_METADATA_HDR10PLUS)
         {
             hb_log("     + hdr10+ dynamic metadata");
 
@@ -718,7 +722,7 @@ void hb_display_job_info(hb_job_t *job)
     if (job->indepth_scan)
     {
         hb_log( " * Foreign Audio Search: %s%s%s",
-                job->select_subtitle_config.dest == RENDERSUB ? "Render/Burn-in" : "Passthrough",
+                job->select_subtitle_config.dest == RENDERSUB ? "Render/Burn-in" : "Passthru",
                 job->select_subtitle_config.force ? ", Forced Only" : "",
                 job->select_subtitle_config.default_track ? ", Default" : "" );
     }
@@ -743,7 +747,7 @@ void hb_display_job_info(hb_job_t *job)
                        subtitle->out_track, subtitle->lang, subtitle->track,
                        subtitle->id,
                        subtitle->config.dest == RENDERSUB ? "Render/Burn-in"
-                                                          : "Passthrough",
+                                                          : "Passthru",
                        subtitle->config.default_track ? ", Default" : "",
                        subtitle->config.offset, subtitle->config.src_codeset);
             }
@@ -755,7 +759,7 @@ void hb_display_job_info(hb_job_t *job)
                        subtitle->out_track, subtitle->lang, subtitle->track,
                        subtitle->id,
                        subtitle->config.dest == RENDERSUB ? "Render/Burn-in"
-                                                          : "Passthrough",
+                                                          : "Passthru",
                        subtitle->config.default_track ? ", Default" : "",
                        subtitle->config.offset);
             }
@@ -767,7 +771,7 @@ void hb_display_job_info(hb_job_t *job)
                        subtitle->id,
                        subtitle->format == PICTURESUB ? "Picture" : "Text",
                        subtitle->config.dest == RENDERSUB ? "Render/Burn-in"
-                                                          : "Passthrough",
+                                                          : "Passthru",
                        subtitle->config.force ? ", Forced Only" : "",
                        subtitle->config.default_track ? ", Default" : "" );
             }
@@ -1506,26 +1510,17 @@ static void sanitize_dynamic_hdr_metadata_passthru(hb_job_t *job)
     if (hb_filter_find(list, HB_FILTER_ROTATE)     != NULL ||
         hb_filter_find(list, HB_FILTER_COLORSPACE) != NULL)
     {
-        job->passthru_dynamic_hdr_metadata = NONE;
+        job->passthru_dynamic_hdr_metadata = HB_HDR_DYNAMIC_METADATA_NONE;
         return;
     }
 
-    if (job->vcodec != HB_VCODEC_X265_10BIT    &&
-        job->vcodec != HB_VCODEC_VT_H265_10BIT &&
-        job->vcodec != HB_VCODEC_SVT_AV1_10BIT)
+    if (hb_video_hdr_dynamic_metadata_is_supported(job->vcodec,HB_HDR_DYNAMIC_METADATA_HDR10PLUS, 0) == 0)
     {
-        job->passthru_dynamic_hdr_metadata &= ~HDR_10_PLUS;
+        job->passthru_dynamic_hdr_metadata &= ~HB_HDR_DYNAMIC_METADATA_HDR10PLUS;
     }
-
-    if ((job->dovi.dv_profile != 5 &&
-         job->dovi.dv_profile != 7 &&
-         job->dovi.dv_profile != 8 &&
-         job->dovi.dv_profile != 10) ||
-        (job->vcodec != HB_VCODEC_X265_10BIT &&
-         job->vcodec != HB_VCODEC_VT_H265_10BIT &&
-         job->vcodec != HB_VCODEC_SVT_AV1_10BIT))
+    if (hb_video_hdr_dynamic_metadata_is_supported(job->vcodec, HB_HDR_DYNAMIC_METADATA_DOVI, job->dovi.dv_profile) == 0)
     {
-        job->passthru_dynamic_hdr_metadata &= ~DOVI;
+        job->passthru_dynamic_hdr_metadata &= ~HB_HDR_DYNAMIC_METADATA_DOVI;
     }
 
     if ((job->dovi.dv_profile == 8 || job->dovi.dv_profile == 10) &&
@@ -1534,11 +1529,11 @@ static void sanitize_dynamic_hdr_metadata_passthru(hb_job_t *job)
         if (job->mastering.has_primaries == 0 && job->mastering.has_luminance == 0)
         {
             hb_log("work: missing mastering metadata, disabling Dolby Vision");
-            job->passthru_dynamic_hdr_metadata &= ~DOVI;
+            job->passthru_dynamic_hdr_metadata &= ~HB_HDR_DYNAMIC_METADATA_DOVI;
         }
     }
 
-    if (job->passthru_dynamic_hdr_metadata & DOVI)
+    if (job->passthru_dynamic_hdr_metadata & HB_HDR_DYNAMIC_METADATA_DOVI)
     {
 #if HB_PROJECT_FEATURE_LIBDOVI
         int mode = 0;
@@ -1622,7 +1617,7 @@ static void sanitize_dynamic_hdr_metadata_passthru(hb_job_t *job)
         free(settings);
 #else
         hb_log("work: libdovi not available, disabling Dolby Vision");
-        job->passthru_dynamic_hdr_metadata &= ~DOVI;
+        job->passthru_dynamic_hdr_metadata &= ~HB_HDR_DYNAMIC_METADATA_DOVI;
 #endif
     }
 }
@@ -1730,7 +1725,7 @@ static void do_job(hb_job_t *job)
         init.color_matrix = title->color_matrix;
         // Dolby Vision profile 5 requires full range
         // TODO: find a better way to handle this
-        init.color_range = job->passthru_dynamic_hdr_metadata & DOVI &&
+        init.color_range = job->passthru_dynamic_hdr_metadata & HB_HDR_DYNAMIC_METADATA_DOVI &&
                             (job->dovi.dv_profile == 5 ||
                              (job->dovi.dv_profile == 10 && job->dovi.dv_bl_signal_compatibility_id == 0)) ?
                             title->color_range : AVCOL_RANGE_MPEG;
@@ -1824,7 +1819,7 @@ static void do_job(hb_job_t *job)
     hb_reduce(&job->vrate.num, &job->vrate.den,
                job->vrate.num,  job->vrate.den);
 
-    if (job->passthru_dynamic_hdr_metadata & DOVI)
+    if (job->passthru_dynamic_hdr_metadata & HB_HDR_DYNAMIC_METADATA_DOVI)
     {
         // Dolby Vision level needs to be updated now that
         // the final width, height and frame rate is known
@@ -1949,7 +1944,7 @@ static void do_job(hb_job_t *job)
             if ( !(audio->config.out.codec & HB_ACODEC_PASS_FLAG ) )
             {
                 /*
-                * Add the encoder thread if not doing pass through
+                * Add the encoder thread if not doing passthru
                 */
                 w = hb_audio_encoder( job->h, audio->config.out.codec);
                 if (w == NULL)

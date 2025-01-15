@@ -14,10 +14,10 @@ int            hb_vce_h264_available();
 int            hb_vce_h265_available();
 int            hb_vce_av1_available();
 
-static const char * const hb_vce_h264_profile_names[] = { "baseline", "main", "high",  NULL, };
-static const char * const hb_vce_h265_profile_names[] = { "main", NULL, };
-static const char * const hb_vce_h265_10bit_profile_names[] = { "main10", NULL, };
-static const char * const hb_vce_av1_profile_names[]  = { "main", NULL, };
+static const char * const hb_vce_h264_profile_names[] = { "auto", "baseline", "main", "high",  NULL, };
+static const char * const hb_vce_h265_profile_names[] = { "auto", "main", NULL, };
+static const char * const hb_vce_h265_10bit_profile_names[] = { "auto", "main10", NULL, };
+static const char * const hb_vce_av1_profile_names[]  = { "auto", "main", NULL, };
 
 static const char * const hb_vce_h264_level_names[] =
 {
